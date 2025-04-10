@@ -1,29 +1,47 @@
-import { OpenAI } from 'openai';
-
-const client = new OpenAI({
-  baseURL: 'https://openrouter.ai/api/v1',
-  apiKey: # .env.local
-  OPENROUTER_API_KEY=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
-  ,
-});
-
 export default async function handler(req, res) {
-  const userMessage = req.body.message;
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const userInput = req.body.messages?.[0]?.content;
+  const apiKey = process.env.GEMINI_API_KEY; // Store safely in .env.local
+
+  if (!userInput || !apiKey) {
+    return res.status(400).json({ error: 'Missing input or API key' });
+  }
 
   try {
-    const completion = await client.chat.completions.create({
-      model: 'nvidia/llama-3.1-nemotron-nano-8b-v1:free',
-      messages: [
-        {
-          role: 'user',
-          content: userMessage,
-        },
-      ],
-    });
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: userInput,
+                },
+              ],
+            },
+          ],
+        }),
+      }
+    );
 
-    res.status(200).json({ response: completion.choices[0].message.content });
+    const data = await response.json();
+    console.log('📦 Gemini Response:', JSON.stringify(data, null, 2));
+
+    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!reply) {
+      return res.status(500).json({ reply: '❌ Gemini से कोई जवाब नहीं मिला।', debug: data });
+    }
+
+    return res.status(200).json({ reply });
   } catch (error) {
-    console.error('Error generating chat completion:', error);
-    res.status(500).json({ error: 'Something went wrong' });
+    console.error('❌ Gemini API Error:', error);
+    return res.status(500).json({ error: 'Failed to get response from Gemini' });
   }
 }

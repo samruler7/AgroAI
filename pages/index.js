@@ -1,27 +1,45 @@
-// pages/index.js
-
 import Head from 'next/head'
 import { useState } from 'react'
 
 export default function Home() {
-  const [messages, setMessages] = useState([{ sender: 'bot', text: 'नमस्ते किसान भाई! AgroAI में आपका स्वागत है। कोई भी सवाल पूछिए।' }])
+  const [messages, setMessages] = useState([
+    { sender: 'bot', text: 'नमस्ते किसान भाई! AgroAI में आपका स्वागत है। कोई भी सवाल पूछिए।' }
+  ])
   const [input, setInput] = useState('')
 
   const sendMessage = async () => {
     if (!input.trim()) return
 
     const userMessage = { sender: 'user', text: input }
-    setMessages([...messages, userMessage])
+    setMessages(prev => [...prev, userMessage])
     setInput('')
 
-    // Dummy bot reply - you can later replace with real API
-    setTimeout(() => {
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: input }],
+        }),
+      })
+
+      const data = await response.json()
+
       const botMessage = {
         sender: 'bot',
-        text: `आपने पूछा: "${userMessage.text}"\nइसका उत्तर जल्द ही दिया जाएगा।`
+        text: data.reply || 'माफ करें, मैं जवाब देने में असमर्थ हूँ।',
       }
+
       setMessages(prev => [...prev, botMessage])
-    }, 1000)
+    } catch (error) {
+      console.error('Error:', error)
+      setMessages(prev => [...prev, {
+        sender: 'bot',
+        text: '❌ कुछ गड़बड़ हो गई, कृपया फिर से कोशिश करें।'
+      }])
+    }
   }
 
   return (
